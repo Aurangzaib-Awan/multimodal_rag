@@ -12,7 +12,7 @@ from config import GEMINI_API_KEY, VLM_CONCURRENCY, VLM_MODEL
 PROMPTS = {
     "image": ("Describe this image from a document so it can be found by search. "
               "Transcribe any visible text, numbers and labels, then explain what it shows."),
-    "figure": ("This is a rendered PDF page containing a vector graphic (chart, plot or diagram). "
+    "figure": ("This is a cropped region of a PDF page showing a vector graphic (chart, plot, diagram or illustration), possibly with its caption. "
                "Describe the graphic: its type, title, axes and units, legend, labelled parts, key values "
                "and the relationship or trend it shows. Transcribe visible text exactly."),
 }

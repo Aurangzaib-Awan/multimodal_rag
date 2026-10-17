@@ -6,7 +6,9 @@ Upload a PDF, then ask questions about its text, tables, images and charts. Answ
 
 - **Parsing** (`backend/services/parsing.py`): runs in a process pool over 16-page batches, because PyMuPDF is CPU-bound and not thread-safe.
   - Text keeps its headings (from font size). Tables, including ones without ruled lines, become whole table chunks.
-  - Raster images (icons under 64px skipped, repeated logos captioned once) and vector graphics (a page with little text, no table, no image and more than 10 drawing paths) are rendered and described by a vision model.
+  - Raster images (icons under 64px skipped, repeated logos captioned once) are extracted and described by a vision model.
+  - Vector graphics are found by region, on any page, even one full of body text: connected drawing paths are clustered, and a cluster with at least 15 paths covering at least 5% of the page that is not a ruled table is a figure. It is cropped with its labels and its "Figure N" caption (not the body text around it) and described by the vision model. Lone separator rules and small callout boxes are ignored. Thresholds live in `backend/config.py`.
+  - A near-empty page that has drawings but no clean cluster is still rendered whole as a fallback.
 - **Captions and embeddings:** VLM calls run concurrently under asyncio, capped at 4 at once. Embeddings run locally with fastembed (bge-base dense, BM25 sparse).
 - **Storage:** Qdrant payload per chunk: `page_number, type, section, text, filename, pages_total`, plus `image_base64` for images and figures.
 - **Query** (`backend/services/retrieval.py`): a page mentioned in the question is a hard filter. Words like "table" or "chart" boost that content type without excluding the rest. Then hybrid dense + BM25 search with RRF, then Gemini answers with `[p.N]` citations.

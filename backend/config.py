@@ -14,8 +14,15 @@ CHUNK_OVERLAP = 200
 MIN_IMAGE_PX = 64           # skip icons / bullets smaller than this on either side
 MAX_IMAGE_SIDE = 1280       # downscale before base64 + VLM
 FIGURE_DPI = 150
-SPARSE_TEXT_CHARS = 500     # vector-graph page: little text ...
-MIN_DRAWINGS = 10           # ... but real drawing paths
+SPARSE_TEXT_CHARS = 500     # fallback only: a near-empty page ...
+MIN_DRAWINGS = 10           # ... with real drawing paths is rendered whole
+MIN_FIGURE_PATHS = 15       # a drawing cluster this big is a figure; callouts, rules and ornaments are smaller
+FIGURE_JOIN_GAP = 10        # paths this close (points) belong to one figure, so floating bars or dots still cluster
+MIN_FIGURE_AREA = 0.05      # ... and must cover at least this share of the page
+FIGURE_PAD = 10             # points of margin around the crop
+FIGURE_CAPTION_GAP = 60     # a "Figure N" caption this close (points) is cropped in with its figure
+FIGURE_LABEL_GAP = 8        # a short text block this close (points) to the drawing is one of its labels
+FIGURE_LABEL_CHARS = 200    # text blocks shorter than this touching the figure are its labels, not body text
 
 # Models
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
