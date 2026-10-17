@@ -60,7 +60,7 @@ Upload one of these from the UI, wait for the page map to fill in, then ask:
 
 ```bash
 cd backend && venv/bin/python -m pytest -q
-cd frontend && npm run lint && npx tsc --noEmit
+cd frontend && npm test && npm run lint && npx tsc --noEmit
 ```
 
 ## Limits
@@ -69,4 +69,5 @@ cd frontend && npm run lint && npx tsc --noEmit
 - One document per session. A new upload replaces that session's document.
 - Uploads over 4 MB are rejected (413), and the frontend checks before uploading. Lambda caps requests at 6 MB, and the PDF arrives base64-encoded (+33%).
 - A new upload deletes the session's previous document right away; a failed ingest deletes its half-built one.
+- Each instance keeps at most 50 sessions' documents in memory (`MAX_SESSIONS` in `backend/config.py`); the least recently used one is dropped, and that user sees "session expired".
 - A question for a session with no collection returns 404 "Session expired, please re-upload your PDF."

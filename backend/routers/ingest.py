@@ -5,7 +5,7 @@ import tempfile
 from fastapi import APIRouter, File, HTTPException, Response, UploadFile
 
 from config import MAX_UPLOAD_BYTES, on_lambda
-from routers.session import Session
+from routers.session import Session, keep
 from services import store
 from services.parsing import PYMUPDF, page_count
 from services.pipeline import JOBS, Job, run_job
@@ -38,10 +38,12 @@ async def ingest_document(response: Response, session: Session, file: UploadFile
         raise HTTPException(400, "That file isn't a readable PDF.")
 
     # one document per session: stop the old ingest if it is still running, and drop the old document now
-    for old in JOBS.values():
-        if old.session_id == session and old.task and not old.task.done():
+    for old in [j for j in JOBS.values() if j.session_id == session]:
+        if old.task and not old.task.done():
             old.task.cancel()
+        del JOBS[old.id]
     await asyncio.to_thread(store.delete_collection, session)
+    await keep(session)
 
     job = Job(filename=file.filename, session_id=session)
     JOBS[job.id] = job

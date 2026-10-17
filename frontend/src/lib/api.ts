@@ -1,3 +1,5 @@
+import { newId } from "./uuid";
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 /** Matches the backend limit: Lambda caps requests at 6 MB and the PDF travels base64-encoded. */
@@ -11,12 +13,12 @@ function sessionId(): string {
   try {
     let id = sessionStorage.getItem(SESSION_KEY);
     if (!id) {
-      id = crypto.randomUUID();
+      id = newId();
       sessionStorage.setItem(SESSION_KEY, id);
     }
     return id;
   } catch {
-    return (memorySession ??= crypto.randomUUID()); // storage blocked: keep it for this page load
+    return (memorySession ??= newId()); // storage blocked: keep it for this page load
   }
 }
 

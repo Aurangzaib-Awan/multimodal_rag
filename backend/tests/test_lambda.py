@@ -117,3 +117,48 @@ def test_all_pymupdf_work_runs_on_one_thread(api, sample_pdf, quick_caption, mon
     monkeypatch.setattr(pipeline, "PAGE_BATCH", 2)  # 6 pages -> 3 batches
     assert _upload(api, sample_pdf, str(uuid.uuid4())).json()["status"] == "done"
     assert len(seen) == 1 and next(iter(seen)).startswith("pymupdf")
+
+
+# --- per-instance session cap: memory must not grow forever on a warm Lambda ---------------------
+
+@pytest.fixture
+def cap_two(monkeypatch):
+    import routers.session as rs
+    monkeypatch.setattr(rs, "MAX_SESSIONS", 2)
+    monkeypatch.setattr(rs, "_recent", {})
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "rag")
+
+
+def _ask(api, session):
+    return api.post("/query", json={"question": "what is entropy"}, headers={"X-Session-Id": session})
+
+
+def test_oldest_session_is_dropped_beyond_the_cap(api, sample_pdf, quick_caption, cap_two, monkeypatch):
+    async def fake_answer(q, points):
+        return "ok"
+    monkeypatch.setattr("routers.query.generate_answer", fake_answer)
+    a, b, c = (str(uuid.uuid4()) for _ in range(3))
+    for s in (a, b, c):
+        assert _upload(api, sample_pdf, s).json()["status"] == "done"
+    assert not store.has_collection(a) and store.has_collection(b) and store.has_collection(c)
+    assert _ask(api, a).status_code == 404
+    assert not [j for j in pipeline.JOBS.values() if j.session_id == a], "dropped session's jobs stay in memory"
+
+
+def test_asking_keeps_a_session_fresh(api, sample_pdf, quick_caption, cap_two, monkeypatch):
+    async def fake_answer(q, points):
+        return "ok"
+    monkeypatch.setattr("routers.query.generate_answer", fake_answer)
+    a, b, c = (str(uuid.uuid4()) for _ in range(3))
+    _upload(api, sample_pdf, a)
+    _upload(api, sample_pdf, b)
+    assert _ask(api, a).status_code == 200  # a is now the most recently used
+    _upload(api, sample_pdf, c)
+    assert store.has_collection(a) and not store.has_collection(b)
+
+
+def test_reuploading_does_not_pile_up_jobs(api, sample_pdf, quick_caption, cap_two):
+    s = str(uuid.uuid4())
+    for _ in range(3):
+        _upload(api, sample_pdf, s)
+    assert len([j for j in pipeline.JOBS.values() if j.session_id == s]) == 1

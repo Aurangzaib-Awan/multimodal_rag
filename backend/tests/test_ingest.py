@@ -107,4 +107,4 @@ def test_replace_never_wipes_index_during_old_upsert(api, sample_pdf, monkeypatc
     second = _upload(api, sample_pdf).json()["job_id"]
     assert _wait(api, second)["status"] == "done"
     assert state["overlap"] is False, "index was wiped while the old job was still writing"
-    assert api.get(f"/ingest/{first}", headers=H).json()["status"] == "error"
+    assert api.get(f"/ingest/{first}", headers=H).status_code == 404, "a replaced job is dropped, not kept in memory"

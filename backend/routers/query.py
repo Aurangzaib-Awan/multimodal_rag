@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, StringConstraints
 
-from routers.session import Session
+from routers.session import Session, keep
 from services import store
 from services.generator import generate_answer
 from services.retrieval import parse_query_filter, retrieve
@@ -24,6 +24,7 @@ async def query_model(request: QueryRequest, session: Session):
     q = request.question
     if not await asyncio.to_thread(store.has_collection, session):
         raise HTTPException(404, "Session expired, please re-upload your PDF.")
+    await keep(session)
     if not await asyncio.to_thread(store.count, session):
         raise HTTPException(409, "Your PDF is still being indexed. Ask again when it finishes.")
 

@@ -37,6 +37,7 @@ MODEL_CACHE_DIR = os.getenv("FASTEMBED_CACHE_PATH", "/opt/models")
 
 # Qdrant runs in memory; each session (X-Session-Id header) gets its own collection
 TOP_K = 6
+MAX_SESSIONS = 50  # documents kept in memory per instance; the least recently used one is dropped
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024  # Lambda caps requests at 6 MB and the PDF arrives base64-encoded (+33%)
 
 
