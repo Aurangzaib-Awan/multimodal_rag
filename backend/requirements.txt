@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+pydantic
+pymupdf
+pymupdf4llm
+pillow
+qdrant-client
+fastembed
+google-genai
+python-dotenv

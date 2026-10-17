@@ -1,0 +1,26 @@
+# secrets and local data
+.env
+*.env
+*api_key*.txt
+backend/qdrant_data/
+qdrant_data*/
+
+# environments and builds
+venv/
+__pycache__/
+.pytest_cache/
+node_modules/
+.next/
+
+# agent workspaces
+.superpowers/
+.impeccable/
+
+# personal / third-party files kept next to the project
+/*.pdf
+/Zaltech*.txt
+
+# local tooling (vendored skills, dev-server config)
+.claude/
+.agents/
+frontend/skills-lock.json
