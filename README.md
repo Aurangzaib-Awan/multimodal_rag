@@ -43,6 +43,17 @@ docker run -p 6333:6333 -v ./qdrant_storage:/qdrant/storage qdrant/qdrant
 # dashboard: http://localhost:6333/dashboard
 ```
 
+## Try it with the demo PDFs
+
+Upload one of these from the UI, wait for the page map to fill in, then ask:
+
+| File | What it is | Good questions |
+|---|---|---|
+| `test1.pdf` | "Attention Is All You Need" (Vaswani et al., 15 pages, 3 figures) | "Describe the figures and charts", "How is attention computed in the scaled dot-product figure?", "What is on page 5?" |
+| `test0.pdf` | A Wikibooks chapter, "Anatomy of the Somatosensory System" (4 pages, 1 image) | "Summarize the first page", "Describe the image" |
+
+`test1.pdf` is reproduced from the paper's Google-provided permission to reuse its tables and figures with attribution. `test0.pdf` comes from Wikibooks (Sensory Systems).
+
 ## Tests
 
 ```bash
