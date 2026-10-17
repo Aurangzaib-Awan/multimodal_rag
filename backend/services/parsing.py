@@ -1,8 +1,8 @@
-"""CPU-bound PDF parsing. Runs inside worker processes, so it must stay picklable and
-must not import anything that opens Qdrant or loads models."""
+"""PDF parsing with PyMuPDF. Run it on the PYMUPDF thread, never on several threads at once."""
 import base64
 import io
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Literal, TypedDict
 
 import fitz
@@ -14,6 +14,10 @@ from config import (FIGURE_CAPTION_GAP, FIGURE_DPI, FIGURE_LABEL_CHARS, FIGURE_L
 from services.chunking import Chunk, split_markdown
 
 PICTURE_PLACEHOLDER = re.compile(r"^\*{0,2}==>.*<==\*{0,2}$", re.MULTILINE)
+# MuPDF is not thread-safe, so every PyMuPDF call goes through this one thread; the event loop stays free.
+# (A process pool would need /dev/shm, which AWS Lambda does not have.)
+PYMUPDF = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pymupdf")
+
 CAPTION = re.compile(r"^\s*(fig(ure|\.)?|chart|diagram|plot|scheme)\s*\d", re.IGNORECASE)
 
 
@@ -131,6 +135,14 @@ def _parse_page(doc: fitz.Document, page: fitz.Page, idx: int, markdown: str,
         visuals = [_render(page)]
     return {"page_number": idx + 1, "chunks": chunks, "visuals": visuals,
             "has_table": has_table, "has_image": bool(visuals)}, section
+
+
+def page_count(path: str) -> int:
+    """Pages in the PDF at `path`; ValueError when it is not a readable PDF."""
+    with fitz.open(path) as doc:
+        if not doc.is_pdf or doc.page_count == 0:
+            raise ValueError("not a readable PDF")
+        return doc.page_count
 
 
 def parse_batch(path: str, pages: list[int]) -> list[PageResult]:

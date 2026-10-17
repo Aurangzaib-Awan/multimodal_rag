@@ -4,7 +4,7 @@ Upload a PDF, then ask questions about its text, tables, images and charts. Answ
 
 ## How it works
 
-- **Parsing** (`backend/services/parsing.py`): runs in a process pool over 16-page batches, because PyMuPDF is CPU-bound and not thread-safe.
+- **Parsing** (`backend/services/parsing.py`): 16-page batches run on one dedicated thread, because MuPDF is not thread-safe (and Lambda has no `/dev/shm` for a process pool). While one batch parses, the previous one is captioned and embedded.
   - Text keeps its headings (from font size). Tables, including ones without ruled lines, become whole table chunks.
   - Raster images (icons under 64px skipped, repeated logos captioned once) are extracted and described by a vision model.
   - Vector graphics are found by region, on any page, even one full of body text: connected drawing paths are clustered, and a cluster with at least 15 paths covering at least 5% of the page that is not a ruled table is a figure. It is cropped with its labels and its "Figure N" caption (not the body text around it) and described by the vision model. Lone separator rules and small callout boxes are ignored. Thresholds live in `backend/config.py`.
@@ -41,6 +41,10 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 
 `main.handler` is the Lambda entry point (Mangum). `uvicorn main:app` keeps working locally.
 
+- On Lambda (`AWS_LAMBDA_FUNCTION_NAME` is set) `POST /ingest` finishes the whole ingest before replying: 200 with the finished job, or 500 with the error. Lambda freezes the instance once a response is sent, so a background job would stall. Locally it stays a background job (202, poll `GET /ingest/{job_id}`).
+- Ingesting `test0.pdf` takes about 25 s, close to API Gateway's 29 s default timeout. Use a Lambda Function URL (up to 15 min) or raise the timeout.
+- Bake the fastembed models into the image at `/opt/models` (or set `FASTEMBED_CACHE_PATH`).
+
 ## Try it with the demo PDFs
 
 Upload one of these from the UI, wait for the page map to fill in, then ask:
@@ -63,5 +67,6 @@ cd frontend && npm run lint && npx tsc --noEmit
 
 - Every request needs an `X-Session-Id` header (a UUID); without it the API returns 400.
 - One document per session. A new upload replaces that session's document.
-- Uploads over 5 MB are rejected (413).
+- Uploads over 4 MB are rejected (413), and the frontend checks before uploading. Lambda caps requests at 6 MB, and the PDF arrives base64-encoded (+33%).
+- A new upload deletes the session's previous document right away; a failed ingest deletes its half-built one.
 - A question for a session with no collection returns 404 "Session expired, please re-upload your PDF."

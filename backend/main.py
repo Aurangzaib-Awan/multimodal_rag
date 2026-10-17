@@ -1,31 +1,19 @@
 import asyncio
-import multiprocessing as mp
 import os
 import traceback
-from concurrent.futures import ProcessPoolExecutor
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from mangum import Mangum
 
-from config import PARSE_WORKERS
 from routers import ingest, query
 from routers.session import Session
 from services import store
 from services.pipeline import JOBS
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # spawn, not fork: the API process holds ONNX/HTTP threads that must not be forked
-    app.state.pool = ProcessPoolExecutor(PARSE_WORKERS, mp_context=mp.get_context("spawn"))
-    yield
-    app.state.pool.shutdown(cancel_futures=True)
-
-
-app = FastAPI(title="Multimodal RAG API", lifespan=lifespan)
+app = FastAPI(title="Multimodal RAG API")
 
 
 @app.exception_handler(Exception)
@@ -60,4 +48,4 @@ async def document(session: Session):
 
 
 # AWS Lambda entry point. Local dev still runs `uvicorn main:app`.
-handler = Mangum(app, lifespan="auto")
+handler = Mangum(app, lifespan="off")

@@ -75,7 +75,7 @@ export default function DocumentRail({ doc, cited, active, onFile, onPickPage }:
           <span>
             <span className="block text-sm font-medium">{dragging ? "Drop to index this PDF" : "Add a PDF"}</span>
             <span className="mt-1 block text-[0.8125rem] leading-snug text-rail-ink-2">
-              Drop it here or click to browse. Text, tables, images and charts are all indexed.
+              Drop it here or click to browse, up to 4 MB. Text, tables, images and charts are all indexed.
             </span>
           </span>
         </button>
@@ -155,7 +155,7 @@ export default function DocumentRail({ doc, cited, active, onFile, onPickPage }:
 function Status({ doc }: { doc: DocState }) {
   switch (doc.phase) {
     case "uploading":
-      return <>Uploading…</>;
+      return <>Uploading and reading pages…</>;
     case "processing":
       return doc.total ? (
         <>

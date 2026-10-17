@@ -85,11 +85,11 @@ def test_upload_in_one_session_does_not_cancel_another(api, sample_pdf, monkeypa
     assert _wait(api, job_a, a)["status"] == "done"
 
 
-def test_upload_over_5_mb_is_rejected(api):
-    big = b"%PDF-1.4\n" + b"0" * (5 * 1024 * 1024)
+def test_upload_over_4_mb_is_rejected(api):
+    big = b"%PDF-1.4\n" + b"0" * (4 * 1024 * 1024)
     r = api.post("/ingest", files={"file": ("big.pdf", big, "application/pdf")}, headers=H(str(uuid.uuid4())))
     assert r.status_code == 413
-    assert "5 MB" in r.json()["detail"]
+    assert "4 MB" in r.json()["detail"]
 
 
 def test_cors_preflight_allows_session_header(api):

@@ -32,6 +32,12 @@ def reset_collection(collection: str) -> None:
         _reset(collection)
 
 
+def delete_collection(collection: str) -> None:
+    with _write_lock:
+        if client().collection_exists(collection):
+            client().delete_collection(collection)
+
+
 def _reset(collection: str) -> None:
     c = client()
     if c.collection_exists(collection):

@@ -1,20 +1,18 @@
-"""Ingest job: parse page batches in worker processes, caption visuals concurrently, embed, upsert.
+"""Ingest job: parse page batches on the PyMuPDF thread, caption visuals concurrently, embed, upsert.
 
-Batches are pipelined: while the pool parses batch N+1, the event loop captions and embeds batch N.
+Batches are pipelined: while the PyMuPDF thread parses batch N+1, the event loop captions and embeds batch N.
 """
 import asyncio
 import os
 import uuid
-from concurrent.futures import Executor
 from dataclasses import dataclass, field
 
-import fitz
 from qdrant_client import models
 
 from config import PAGE_BATCH
 from services import store
 from services.embedding import embed_dense, embed_sparse
-from services.parsing import PageResult, parse_batch
+from services.parsing import PYMUPDF, PageResult, page_count, parse_batch
 from services.vlm import caption
 
 
@@ -72,17 +70,16 @@ async def _points_for(pages: list[PageResult], job: Job, seen_xrefs: set[int]) -
             for d, s, (_, pl) in zip(dense, sparse, items)]
 
 
-async def run_job(job: Job, path: str, pool: Executor) -> None:
+async def run_job(job: Job, path: str) -> None:
     loop = asyncio.get_running_loop()
     try:
-        with fitz.open(path) as doc:
-            job.pages_total = doc.page_count
+        job.pages_total = await loop.run_in_executor(PYMUPDF, page_count, path)
         job.status = "processing"
         await asyncio.to_thread(store.reset_collection, job.session_id)
 
         n = job.pages_total
         batches = [list(range(i, min(i + PAGE_BATCH, n))) for i in range(0, n, PAGE_BATCH)]
-        futures = [loop.run_in_executor(pool, parse_batch, path, b) for b in batches]
+        futures = [loop.run_in_executor(PYMUPDF, parse_batch, path, b) for b in batches]
         seen_xrefs: set[int] = set()
         try:
             for fut in asyncio.as_completed(futures):
@@ -100,5 +97,7 @@ async def run_job(job: Job, path: str, pool: Executor) -> None:
         raise
     except Exception as e:
         job.status, job.error = "error", f"{type(e).__name__}: {e}"
+        # never serve a half-built document: the session's next question says "re-upload"
+        await asyncio.to_thread(store.delete_collection, job.session_id)
     finally:
         os.remove(path)

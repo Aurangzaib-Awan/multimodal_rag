@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DocumentRail, { type DocState } from "@/components/DocumentRail";
 import Conversation, { type Exchange } from "@/components/Conversation";
 import FigureViewer from "@/components/FigureViewer";
-import { ApiError, ask, getDocument, getJob, startIngest, type Visual } from "@/lib/api";
+import { ApiError, MAX_UPLOAD_BYTES, ask, getDocument, getJob, startIngest, type Visual } from "@/lib/api";
 
 const message = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong. Try again.");
 
@@ -72,13 +72,22 @@ export default function Home() {
       setDoc({ phase: "empty", error: `"${file.name}" isn't a PDF. Choose a .pdf file.` });
       return;
     }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      const mb = (n: number) => (n / (1024 * 1024)).toFixed(1);
+      setDoc({ phase: "empty", error: `"${file.name}" is ${mb(file.size)} MB. The limit is ${mb(MAX_UPLOAD_BYTES)} MB.` });
+      return;
+    }
     setDoc({ phase: "uploading", filename: file.name });
     setExchanges([]);
     setActive(null);
     try {
-      const { job_id } = await startIngest(file);
-      setDoc({ phase: "processing", filename: file.name, done: 0, total: 0, chunks: 0 });
-      setJobId(job_id);
+      const job = await startIngest(file);
+      if (job.status === "done") {
+        setDoc({ phase: "ready", filename: job.filename, total: job.pages_total, chunks: job.chunks, visuals: job.visuals });
+      } else {
+        setDoc({ phase: "processing", filename: file.name, done: 0, total: 0, chunks: 0 });
+        setJobId(job.job_id);
+      }
     } catch (e) {
       setDoc({ phase: "error", filename: file.name, error: message(e) });
     }
@@ -90,6 +99,8 @@ export default function Home() {
       setExchanges((xs) => xs.map((x) => (x.id === id ? { ...x, status: "done", data } : x)));
     } catch (e) {
       setExchanges((xs) => xs.map((x) => (x.id === id ? { ...x, status: "error", error: message(e) } : x)));
+      // the backend lost this session's document (restart / new Lambda instance): ask for the PDF again
+      if (e instanceof ApiError && e.status === 404) setDoc({ phase: "empty", error: message(e) });
     }
   }, []);
 

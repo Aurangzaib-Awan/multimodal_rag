@@ -8,7 +8,6 @@ load_dotenv(BASE_DIR / ".env")
 
 # Parsing
 PAGE_BATCH = 16
-PARSE_WORKERS = max(1, min(3, (os.cpu_count() or 2) - 1))
 MAX_CHUNK_CHARS = 1500
 CHUNK_OVERLAP = 200
 MIN_IMAGE_PX = 64           # skip icons / bullets smaller than this on either side
@@ -38,4 +37,9 @@ MODEL_CACHE_DIR = os.getenv("FASTEMBED_CACHE_PATH", "/opt/models")
 
 # Qdrant runs in memory; each session (X-Session-Id header) gets its own collection
 TOP_K = 6
-MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # Lambda's request payload limit is 6 MB
+MAX_UPLOAD_BYTES = 4 * 1024 * 1024  # Lambda caps requests at 6 MB and the PDF arrives base64-encoded (+33%)
+
+
+def on_lambda() -> bool:
+    """Lambda freezes the instance once a response is sent, so work there must finish inside the request."""
+    return bool(os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
