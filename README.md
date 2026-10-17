@@ -10,7 +10,7 @@ Upload a PDF, then ask questions about its text, tables, images and charts. Answ
   - Vector graphics are found by region, on any page, even one full of body text: connected drawing paths are clustered, and a cluster with at least 15 paths covering at least 5% of the page that is not a ruled table is a figure. It is cropped with its labels and its "Figure N" caption (not the body text around it) and described by the vision model. Lone separator rules and small callout boxes are ignored. Thresholds live in `backend/config.py`.
   - A near-empty page that has drawings but no clean cluster is still rendered whole as a fallback.
 - **Captions and embeddings:** VLM calls run concurrently under asyncio, capped at 4 at once. Embeddings run locally with fastembed (bge-base dense, BM25 sparse).
-- **Storage:** Qdrant payload per chunk: `page_number, type, section, text, filename, pages_total`, plus `image_base64` for images and figures.
+- **Storage:** in-memory Qdrant, one collection per session (the `X-Session-Id` header, a UUID the frontend generates). Nothing persists: a restart, or a new Lambda instance, means re-uploading. Payload per chunk: `page_number, type, section, text, filename, pages_total`, plus `image_base64` for images and figures.
 - **Query** (`backend/services/retrieval.py`): a page mentioned in the question is a hard filter. Words like "table" or "chart" boost that content type without excluding the rest. Then hybrid dense + BM25 search with RRF, then Gemini answers with `[p.N]` citations.
 - **Ingest is a background job**: `POST /ingest` returns a job id, `GET /ingest/{id}` reports progress, and `GET /document` tells a reloaded page what is indexed or still running.
 
@@ -34,16 +34,12 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 | Variable | Purpose |
 |---|---|
 | `GEMINI_API_KEY` | image/figure captions and answers (required) |
-| `QDRANT_URL`, `QDRANT_API_KEY` | optional. Unset = embedded Qdrant stored in `backend/qdrant_data` |
+| `FASTEMBED_CACHE_PATH` | fastembed model folder. Default `/opt/models` (baked into the Lambda image); set a writable folder for local dev, e.g. `/tmp/fastembed_cache` |
 | `CORS_ORIGINS` | comma-separated, default `http://localhost:3000` |
 
-### Using a Qdrant server (to browse the dashboard)
+### Deploying to AWS Lambda
 
-```bash
-docker run -p 6333:6333 -v ./qdrant_storage:/qdrant/storage qdrant/qdrant
-# then in backend/.env:  QDRANT_URL=http://localhost:6333
-# dashboard: http://localhost:6333/dashboard
-```
+`main.handler` is the Lambda entry point (Mangum). `uvicorn main:app` keeps working locally.
 
 ## Try it with the demo PDFs
 
@@ -65,5 +61,7 @@ cd frontend && npm run lint && npx tsc --noEmit
 
 ## Limits
 
-- One document at a time. A new upload replaces the index.
-- Embedded Qdrant allows one process on the folder, so run a single backend process.
+- Every request needs an `X-Session-Id` header (a UUID); without it the API returns 400.
+- One document per session. A new upload replaces that session's document.
+- Uploads over 5 MB are rejected (413).
+- A question for a session with no collection returns 404 "Session expired, please re-upload your PDF."

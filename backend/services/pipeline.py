@@ -21,6 +21,7 @@ from services.vlm import caption
 @dataclass
 class Job:
     filename: str
+    session_id: str  # also the Qdrant collection name
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     status: str = "queued"  # queued | processing | done | error
     pages_done: int = 0
@@ -77,7 +78,7 @@ async def run_job(job: Job, path: str, pool: Executor) -> None:
         with fitz.open(path) as doc:
             job.pages_total = doc.page_count
         job.status = "processing"
-        await asyncio.to_thread(store.reset_collection)
+        await asyncio.to_thread(store.reset_collection, job.session_id)
 
         n = job.pages_total
         batches = [list(range(i, min(i + PAGE_BATCH, n))) for i in range(0, n, PAGE_BATCH)]
@@ -87,7 +88,7 @@ async def run_job(job: Job, path: str, pool: Executor) -> None:
             for fut in asyncio.as_completed(futures):
                 pages = await fut
                 points = await _points_for(pages, job, seen_xrefs)
-                await asyncio.to_thread(store.upsert, points)
+                await asyncio.to_thread(store.upsert, job.session_id, points)
                 job.chunks += len(points)
                 job.pages_done += len(pages)
         finally:

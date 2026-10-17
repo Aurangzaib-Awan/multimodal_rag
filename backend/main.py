@@ -8,9 +8,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from mangum import Mangum
 
 from config import PARSE_WORKERS
 from routers import ingest, query
+from routers.session import Session
 from services import store
 from services.pipeline import JOBS
 
@@ -49,9 +51,13 @@ async def root():
 
 
 @app.get("/document")
-async def document():
-    """What is currently indexed, so the UI can restore its state after a reload."""
-    info = await asyncio.to_thread(store.document_info)
-    running = [j for j in JOBS.values() if j.status in ("queued", "processing")]
+async def document(session: Session):
+    """What this session has indexed, so the UI can restore its state after a reload."""
+    info = await asyncio.to_thread(store.document_info, session)
+    running = [j for j in JOBS.values() if j.session_id == session and j.status in ("queued", "processing")]
     # while a job runs the index is half-built: not ready, and the UI resumes the job's progress
     return {**info, "indexed": info["indexed"] and not running, "job": running[-1].public() if running else None}
+
+
+# AWS Lambda entry point. Local dev still runs `uvicorn main:app`.
+handler = Mangum(app, lifespan="auto")

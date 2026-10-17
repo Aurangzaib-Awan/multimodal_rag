@@ -41,10 +41,10 @@ def parse_query_filter(question: str) -> QueryFilter:
     return QueryFilter(page=_page(q), types=types)
 
 
-def retrieve(question: str) -> tuple[list[models.ScoredPoint], QueryFilter]:
+def retrieve(collection: str, question: str) -> tuple[list[models.ScoredPoint], QueryFilter]:
     flt = parse_query_filter(question)
     dense = embed_dense([question], is_query=True)[0]
     sparse = embed_sparse([question], is_query=True)[0]
     hard = store.build_filter(flt.page, None)
     boost = store.build_filter(flt.page, flt.types) if flt.types else None
-    return store.search(dense, sparse, hard, boost), flt
+    return store.search(collection, dense, sparse, hard, boost), flt

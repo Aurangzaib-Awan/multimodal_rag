@@ -33,9 +33,9 @@ DENSE_MODEL = "BAAI/bge-base-en-v1.5"
 DENSE_SIZE = 768
 SPARSE_MODEL = "Qdrant/bm25"
 
-# Qdrant: unset URL -> embedded on-disk mode
-QDRANT_URL = os.getenv("QDRANT_URL") or None
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY") or None
-QDRANT_PATH = str(BASE_DIR / "qdrant_data")
-COLLECTION = "multimodal_docs"
+# fastembed model files; bake them into the image here at build time
+MODEL_CACHE_DIR = os.getenv("FASTEMBED_CACHE_PATH", "/opt/models")
+
+# Qdrant runs in memory; each session (X-Session-Id header) gets its own collection
 TOP_K = 6
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # Lambda's request payload limit is 6 MB

@@ -4,19 +4,19 @@ from functools import cache
 from fastembed import SparseTextEmbedding, TextEmbedding
 from qdrant_client import models
 
-from config import DENSE_MODEL, SPARSE_MODEL
+from config import DENSE_MODEL, MODEL_CACHE_DIR, SPARSE_MODEL
 
 QUERY_PREFIX = "Represent this sentence for searching relevant passages: "  # bge v1.5 model card
 
 
 @cache
 def _dense() -> TextEmbedding:
-    return TextEmbedding(DENSE_MODEL)
+    return TextEmbedding(DENSE_MODEL, cache_dir=MODEL_CACHE_DIR)
 
 
 @cache
 def _sparse() -> SparseTextEmbedding:
-    return SparseTextEmbedding(SPARSE_MODEL)
+    return SparseTextEmbedding(SPARSE_MODEL, cache_dir=MODEL_CACHE_DIR)
 
 
 def embed_dense(texts: list[str], is_query: bool = False) -> list[list[float]]:
