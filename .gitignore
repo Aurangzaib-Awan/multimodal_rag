@@ -18,6 +18,8 @@ node_modules/
 
 # personal / third-party files kept next to the project
 /*.pdf
+!/test0.pdf
+!/test1.pdf
 /Zaltech*.txt
 
 # local tooling (vendored skills, dev-server config)
