@@ -1,11 +1,18 @@
-fastapi
-uvicorn
-python-multipart
-pydantic
-pymupdf
-pymupdf4llm
-pillow
-qdrant-client
-fastembed
-google-genai
-python-dotenv
+# Web API
+fastapi>=0.136,<1
+uvicorn>=0.46,<1
+python-multipart>=0.0.27   # file uploads (UploadFile)
+pydantic>=2.13,<3
+python-dotenv>=1.2,<2
+
+# PDF parsing (pymupdf4llm also pulls in pymupdf-layout and tabulate)
+pymupdf>=1.27,<2
+pymupdf4llm>=1.27,<2
+pillow>=12.2,<13
+
+# Embeddings (local, ONNX) and vector store
+fastembed>=0.8,<1
+qdrant-client>=1.17,<2
+
+# Gemini: image/figure captions and answers
+google-genai>=1.74,<2
