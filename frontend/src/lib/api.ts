@@ -1,6 +1,7 @@
+import { apiBase, errorMessage } from "./errors";
 import { newId } from "./uuid";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+export const API_URL = apiBase(process.env.NEXT_PUBLIC_API_URL);
 
 /** Matches the backend limit: Lambda caps requests at 6 MB and the PDF travels base64-encoded. */
 export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
@@ -82,7 +83,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(`Can't reach the API at ${API_URL}. Is the backend running?`);
   }
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(body.detail ?? `Request failed (${res.status}).`, res.status);
+  if (!res.ok) throw new ApiError(errorMessage(res.status, body), res.status);
   return body as T;
 }
 

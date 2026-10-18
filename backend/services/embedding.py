@@ -22,7 +22,8 @@ def _sparse() -> SparseTextEmbedding:
 def embed_dense(texts: list[str], is_query: bool = False) -> list[list[float]]:
     if is_query:
         texts = [QUERY_PREFIX + t for t in texts]
-    return [v.tolist() for v in _dense().embed(texts, batch_size=32)]
+    # one text per batch: a batch is padded to its longest text, which made ingest ~2x slower (same vectors)
+    return [v.tolist() for v in _dense().embed(texts, batch_size=1)]
 
 
 def embed_sparse(texts: list[str], is_query: bool = False) -> list[models.SparseVector]:

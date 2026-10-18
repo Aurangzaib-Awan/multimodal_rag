@@ -39,11 +39,46 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 
 ### Deploying to AWS Lambda
 
-`main.handler` is the Lambda entry point (Mangum). `uvicorn main:app` keeps working locally.
+`main.handler` is the Lambda entry point (Mangum); `backend/Dockerfile` builds the image with both embedding models baked in at `/opt/models`. `uvicorn main:app` keeps working locally.
 
-- On Lambda (`AWS_LAMBDA_FUNCTION_NAME` is set) `POST /ingest` finishes the whole ingest before replying: 200 with the finished job, or 500 with the error. Lambda freezes the instance once a response is sent, so a background job would stall. Locally it stays a background job (202, poll `GET /ingest/{job_id}`).
-- Ingesting `test0.pdf` takes about 25 s, close to API Gateway's 29 s default timeout. Use a Lambda Function URL (up to 15 min) or raise the timeout.
-- Bake the fastembed models into the image at `/opt/models` (or set `FASTEMBED_CACHE_PATH`).
+How it behaves on Lambda (`AWS_LAMBDA_FUNCTION_NAME` is set):
+
+- `POST /ingest` finishes the whole ingest before replying: 200 with the finished job, or 500 with the error. Lambda freezes once a response is sent, so a background job would stall. Locally it stays a background job (202, poll `GET /ingest/{job_id}`).
+- The models load during Lambda's init phase, not inside the first request. `test0.pdf` ingests in about 8 s once warm.
+- One instance serves everything (reserved concurrency 1, below), so documents are never on "another instance". A second request that arrives while one is running gets 429 from AWS, and the UI says the server is busy.
+
+Steps (replace `ACCOUNT`, `REGION`, the role and the key):
+
+```bash
+cd backend
+docker build --platform linux/amd64 -t multirag-api .
+
+aws ecr create-repository --repository-name multirag-api
+aws ecr get-login-password --region REGION | docker login --username AWS --password-stdin ACCOUNT.dkr.ecr.REGION.amazonaws.com
+docker tag multirag-api:latest ACCOUNT.dkr.ecr.REGION.amazonaws.com/multirag-api:latest
+docker push ACCOUNT.dkr.ecr.REGION.amazonaws.com/multirag-api:latest
+
+aws lambda create-function --function-name multirag-api --package-type Image \
+  --code ImageUri=ACCOUNT.dkr.ecr.REGION.amazonaws.com/multirag-api:latest \
+  --role arn:aws:iam::ACCOUNT:role/YOUR_LAMBDA_ROLE \
+  --memory-size 3008 --timeout 300 \
+  --environment "Variables={GEMINI_API_KEY=your-key,CORS_ORIGINS=https://your-frontend.example}"
+
+# one instance only: every session's in-memory document lives in the same place
+aws lambda put-function-concurrency --function-name multirag-api --reserved-concurrent-executions 1
+
+# public HTTPS endpoint, up to 15 min per request (API Gateway would cut ingest off at 29 s)
+aws lambda create-function-url-config --function-name multirag-api --auth-type NONE
+aws lambda add-permission --function-name multirag-api --statement-id public-url \
+  --action lambda:InvokeFunctionUrl --principal "*" --function-url-auth-type NONE
+```
+
+- **Role:** any role with the `AWSLambdaBasicExecutionRole` policy (CloudWatch logs). The console's "create a new role" option makes one.
+- **Memory 3008 MB:** measured about 1.1 GB after the first ingest plus about 15 MB per session (30 MB worst case), so the 50-session cap fits. More memory also means more CPU, and embedding is CPU-bound.
+- **CORS:** leave the Function URL's own CORS setting off. The app already answers CORS from `CORS_ORIGINS`, and setting both sends duplicate headers that browsers reject.
+- **Reserved concurrency 1 can fail on new AWS accounts.** AWS keeps at least 10 concurrent executions unreserved, and new accounts often have a total of only 10. If the command is refused, request a higher "Concurrent executions" quota in Service Quotas.
+- **Frontend:** build it with `NEXT_PUBLIC_API_URL` set to the Function URL. A trailing slash is fine.
+- **Updating:** rebuild and push, then `aws lambda update-function-code --function-name multirag-api --image-uri ACCOUNT.dkr.ecr.REGION.amazonaws.com/multirag-api:latest`.
 
 ## Try it with the demo PDFs
 
@@ -52,7 +87,7 @@ Upload one of these from the UI, wait for the page map to fill in, then ask:
 | File | What it is | Good questions |
 |---|---|---|
 | `test1.pdf` | "Attention Is All You Need" (Vaswani et al., 15 pages, 3 figures) | "Describe the figures and charts", "How is attention computed in the scaled dot-product figure?", "What is on page 5?" |
-| `test0.pdf` | A Wikibooks chapter, "Anatomy of the Somatosensory System" (4 pages, 1 image) | "Summarize the first page", "Describe the image" |
+| `test0.pdf` | A Wikibooks chapter, "Anatomy of the Somatosensory System" (4 pages, 1 photo, 2 diagrams) | "Summarize the first page", "What is on the last page?", "Describe the figures" |
 
 `test1.pdf` is reproduced from the paper's Google-provided permission to reuse its tables and figures with attribution. `test0.pdf` comes from Wikibooks (Sensory Systems).
 

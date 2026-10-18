@@ -1,0 +1,8 @@
+# never bake secrets or local data into the image
+.env
+venv/
+tests/
+qdrant_data/
+__pycache__/
+.pytest_cache/
+*.pdf

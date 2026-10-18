@@ -8,8 +8,9 @@ from fastapi.responses import JSONResponse
 from mangum import Mangum
 
 from routers import ingest, query
+from config import on_lambda
 from routers.session import Session
-from services import store
+from services import embedding, store
 from services.pipeline import JOBS
 
 
@@ -49,3 +50,7 @@ async def document(session: Session):
 
 # AWS Lambda entry point. Local dev still runs `uvicorn main:app`.
 handler = Mangum(app, lifespan="off")
+
+if on_lambda():  # load the models during Lambda's init phase, not inside the first upload or question
+    embedding.embed_dense(["warm up"])
+    embedding.embed_sparse(["warm up"])

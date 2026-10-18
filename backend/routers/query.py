@@ -1,4 +1,5 @@
 import asyncio
+import re
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException
@@ -6,12 +7,13 @@ from pydantic import BaseModel, StringConstraints
 
 from routers.session import Session, keep
 from services import store
-from services.generator import generate_answer
+from services.generator import ModelBusy, generate_answer
 from services.retrieval import parse_query_filter, retrieve
 
 router = APIRouter(prefix="/query", tags=["Query"])
 
 VISUAL_TYPES = {"image", "figure"}
+CITED_PAGE = re.compile(r"\bp\.\s*(\d+)")  # "[p.4]", "[p.3, p.5]"
 
 
 class QueryRequest(BaseModel):
@@ -28,14 +30,18 @@ async def query_model(request: QueryRequest, session: Session):
     if not await asyncio.to_thread(store.count, session):
         raise HTTPException(409, "Your PDF is still being indexed. Ask again when it finishes.")
 
-    asked = parse_query_filter(q).page
     total = await asyncio.to_thread(store.pages_total, session)
+    asked = parse_query_filter(q, total).page
     if asked is not None and total and not 1 <= asked <= total:
         return {"question": q, "answer": f"The document has {total} pages, so page {asked} doesn't exist.",
                 "filter": {"page": asked, "types": None}, "sources": [], "images": []}
 
-    points, flt = await asyncio.to_thread(retrieve, session, q)
-    answer = await generate_answer(q, points)
+    points, flt = await asyncio.to_thread(retrieve, session, q, total)
+    try:
+        answer = await generate_answer(q, points)
+    except ModelBusy:
+        raise HTTPException(503, "The AI model is busy right now. Please try again in a moment.")
+    cited = {int(n) for n in CITED_PAGE.findall(answer)}  # show only the pictures the answer actually used
     return {
         "question": q,
         "answer": answer,
@@ -44,5 +50,6 @@ async def query_model(request: QueryRequest, session: Session):
                      "section": p.payload.get("section"), "snippet": p.payload["text"][:240]} for p in points],
         "images": [{"type": p.payload["type"], "page_number": p.payload["page_number"],
                     "caption": p.payload["text"], "image_base64": p.payload["image_base64"]}
-                   for p in points if p.payload["type"] in VISUAL_TYPES and p.payload.get("image_base64")],
+                   for p in points if p.payload["type"] in VISUAL_TYPES and p.payload.get("image_base64")
+                   and p.payload["page_number"] in cited],
     }

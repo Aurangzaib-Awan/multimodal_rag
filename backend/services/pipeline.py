@@ -55,12 +55,15 @@ async def _points_for(pages: list[PageResult], job: Job, seen_xrefs: set[int]) -
             section = p["chunks"][0]["section"] if p["chunks"] else None
             visuals.append((v, {**meta, "type": v["kind"], "section": section, "image_base64": v["jpeg_b64"]}))
 
-    captions = await asyncio.gather(*(caption(v["jpeg_b64"], v["kind"]) for v, _ in visuals))
-    for (v, payload), cap in zip(visuals, captions):
-        if cap:
-            items.append((cap, {**payload, "text": cap}))
-            job.visuals += 1
+    # embed the text chunks (CPU) while the vision model captions the figures (network)
+    text_points, captions = await asyncio.gather(
+        _embed(items), asyncio.gather(*(caption(v["jpeg_b64"], v["kind"]) for v, _ in visuals)))
+    caption_items = [(cap, {**payload, "text": cap}) for (_, payload), cap in zip(visuals, captions) if cap]
+    job.visuals += len(caption_items)
+    return text_points + await _embed(caption_items)
 
+
+async def _embed(items: list[tuple[str, dict]]) -> list[models.PointStruct]:
     if not items:
         return []
     texts = [t for t, _ in items]

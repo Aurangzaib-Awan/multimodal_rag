@@ -11,6 +11,9 @@ ORDINALS = {w: i for i, w in enumerate(
     "first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth thirteenth "
     "fourteenth fifteenth sixteenth seventeenth eighteenth nineteenth twentieth".split(), start=1)}
 TABLE_WORDS = re.compile(r"\btables?\b")
+# "second to last" before "last": the longer phrase also contains "last page"
+RELATIVE_PAGES = [(re.compile(r"\b(second[\s-]+(to[\s-]+)?last|penultimate)\s+page\b"), 1),
+                  (re.compile(r"\b(last|final)\s+page\b"), 0)]
 VISUAL_WORDS = re.compile(r"\b(images?|pictures?|photos?|figures?|fig\.|diagrams?|graphs?|charts?|plots?|illustrations?)")
 
 
@@ -20,7 +23,11 @@ class QueryFilter:
     types: list[str] | None = None
 
 
-def _page(q: str) -> int | None:
+def _page(q: str, pages_total: int | None = None) -> int | None:
+    if pages_total:
+        for pattern, back in RELATIVE_PAGES:
+            if pattern.search(q):
+                return pages_total - back
     if m := re.search(r"\bpage\s+(?:no\.?\s*)?(\d+)\b", q):
         return int(m.group(1))
     if m := re.search(r"\b(\d+)(?:st|nd|rd|th)?\s+page\b", q):
@@ -31,18 +38,18 @@ def _page(q: str) -> int | None:
     return None
 
 
-def parse_query_filter(question: str) -> QueryFilter:
+def parse_query_filter(question: str, pages_total: int | None = None) -> QueryFilter:
     q = question.lower()
     types = None
     if TABLE_WORDS.search(q):
         types = ["table"]
     elif VISUAL_WORDS.search(q):
         types = ["image", "figure"]
-    return QueryFilter(page=_page(q), types=types)
+    return QueryFilter(page=_page(q, pages_total), types=types)
 
 
-def retrieve(collection: str, question: str) -> tuple[list[models.ScoredPoint], QueryFilter]:
-    flt = parse_query_filter(question)
+def retrieve(collection: str, question: str, pages_total: int | None = None) -> tuple[list[models.ScoredPoint], QueryFilter]:
+    flt = parse_query_filter(question, pages_total)
     dense = embed_dense([question], is_query=True)[0]
     sparse = embed_sparse([question], is_query=True)[0]
     hard = store.build_filter(flt.page, None)

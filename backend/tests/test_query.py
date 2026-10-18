@@ -133,3 +133,56 @@ def test_document_reports_running_job(api):
         store.set_client(None)
     assert body["job"]["id"] == job.id and body["job"]["pages_total"] == 800
     assert body["indexed"] is False, "a half-built index must not look ready"
+
+
+# --- relative pages and which images an answer shows -----------------------------------------------
+
+@pytest.mark.parametrize("q,page", [
+    ("show me what's on the last page", 9), ("summarize the final page", 9),
+    ("what is on the second to last page", 8), ("the second last page", 8), ("penultimate page please", 8),
+    ("what is on page 2", 2),
+])
+def test_relative_pages_use_the_page_count(q, page):
+    assert parse_query_filter(q, pages_total=9).page == page
+
+
+def test_last_page_without_a_page_count_is_no_filter():
+    assert parse_query_filter("what is on the last page").page is None
+
+
+@pytest.fixture
+def answer_with(monkeypatch):
+    def use(text):
+        async def fake(q, points):
+            return text
+        monkeypatch.setattr(query_router, "generate_answer", fake)
+    return use
+
+
+def test_last_page_question_searches_only_the_last_page(filled, api, answer_with):
+    answer_with("It covers gradient descent [p.3].")
+    body = api.post("/query", json={"question": "show me what's on the last page"}, headers=H).json()
+    assert body["filter"]["page"] == 3
+    assert {s["page_number"] for s in body["sources"]} == {3}
+    assert body["images"] == []
+
+
+def test_images_appear_only_for_pages_the_answer_cites(filled, api, answer_with):
+    answer_with("Entropy measures uncertainty [p.1].")
+    body = api.post("/query", json={"question": "what is entropy and the training loss chart"}, headers=H).json()
+    assert any(s["type"] == "figure" for s in body["sources"]), "the figure was retrieved"
+    assert body["images"] == [], "but the answer never cited its page, so it is not shown"
+
+    answer_with("Loss falls over epochs [p.2], unlike entropy [p.1].")
+    body = api.post("/query", json={"question": "what is entropy and the training loss chart"}, headers=H).json()
+    assert [i["page_number"] for i in body["images"]] == [2]
+
+
+def test_busy_model_returns_503_with_a_clear_message(filled, api, monkeypatch):
+    from services.generator import ModelBusy
+
+    async def busy(q, points):
+        raise ModelBusy()
+    monkeypatch.setattr(query_router, "generate_answer", busy)
+    r = api.post("/query", json={"question": "what is entropy"}, headers=H)
+    assert r.status_code == 503 and "try again" in r.json()["detail"].lower()

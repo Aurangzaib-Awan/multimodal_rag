@@ -162,3 +162,26 @@ def test_reuploading_does_not_pile_up_jobs(api, sample_pdf, quick_caption, cap_t
     for _ in range(3):
         _upload(api, sample_pdf, s)
     assert len([j for j in pipeline.JOBS.values() if j.session_id == s]) == 1
+
+
+def test_text_is_embedded_while_figures_are_being_captioned(api, sample_pdf, monkeypatch):
+    """Captioning waits on the network and embedding uses the CPU, so they must overlap."""
+    import time
+    events = []
+
+    async def slow_caption(b64, kind):
+        await asyncio.sleep(1.0)
+        events.append(("caption done", time.monotonic()))
+        return "a caption"
+
+    def fake_dense(texts, is_query=False):
+        events.append(("embed", time.monotonic()))
+        return [[0.1] * 768 for _ in texts]
+
+    monkeypatch.setattr(pipeline, "caption", slow_caption)
+    monkeypatch.setattr(pipeline, "embed_dense", fake_dense)
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "rag")
+    assert _upload(api, sample_pdf, str(uuid.uuid4())).json()["status"] == "done"
+    first_embed = min(t for e, t in events if e == "embed")
+    first_caption = min(t for e, t in events if e == "caption done")
+    assert first_embed < first_caption, "text embedding waited for the captions"

@@ -1,3 +1,4 @@
+#backend/requirements.txt
 # Web API
 fastapi>=0.136,<1
 uvicorn>=0.46,<1           # local dev server
