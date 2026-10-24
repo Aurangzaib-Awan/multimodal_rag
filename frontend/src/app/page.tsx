@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DocumentRail, { type DocState } from "@/components/DocumentRail";
 import Conversation, { type Exchange } from "@/components/Conversation";
 import FigureViewer from "@/components/FigureViewer";
-import { ApiError, MAX_UPLOAD_BYTES, ask, getDocument, getJob, startIngest, type Visual } from "@/lib/api";
+import { ApiError, MAX_UPLOAD_BYTES, ask, getDocument, getFigures, getJob, startIngest, type Visual } from "@/lib/api";
 
 const message = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong. Try again.");
 
@@ -15,6 +15,7 @@ export default function Home() {
   const [draft, setDraft] = useState("");
   const [active, setActive] = useState<number | null>(null);
   const [visual, setVisual] = useState<Visual | null>(null);
+  const [figures, setFigures] = useState<Visual[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const nextId = useRef(1);
 
@@ -31,6 +32,18 @@ export default function Home() {
       })
       .catch((e) => setDoc({ phase: "empty", error: message(e) }));
   }, []);
+
+  // Once a document is ready, fetch its pictures for the gallery.
+  useEffect(() => {
+    if (doc.phase !== "ready") return;
+    let alive = true;
+    getFigures()
+      .then((r) => alive && setFigures(r.figures))
+      .catch(() => alive && setFigures([]));
+    return () => {
+      alive = false;
+    };
+  }, [doc.phase]);
 
   // Poll the ingest job until it finishes.
   useEffect(() => {
@@ -78,6 +91,7 @@ export default function Home() {
       return;
     }
     setDoc({ phase: "uploading", filename: file.name });
+    setFigures([]);
     setExchanges([]);
     setActive(null);
     try {
@@ -133,6 +147,8 @@ export default function Home() {
         cited={cited}
         active={active}
         onFile={onFile}
+        figures={figures}
+        onAskAbout={(v) => onAsk(`Explain the ${v.type === "figure" ? "diagram" : "image"} on page ${v.page_number}`)}
         onPickPage={(page) => {
           setDraft(`What is on page ${page}?`);
           inputRef.current?.focus();

@@ -98,6 +98,8 @@ export function startIngest(file: File) {
 
 export const getJob = (id: string) => call<Job>(`/ingest/${id}`);
 
+export const getFigures = () => call<{ figures: Visual[] }>("/figures");
+
 export const ask = (question: string) =>
   call<QueryResponse>("/query", {
     method: "POST",

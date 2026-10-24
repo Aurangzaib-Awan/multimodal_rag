@@ -15,6 +15,7 @@ SYSTEM = (
 )
 
 RETRY_DELAYS = (1, 2)  # seconds before the 2nd and 3rd attempt; short, so a Lambda request stays well under its timeout
+TIMEOUT = 25  # seconds per attempt: an overloaded model can hang without ever erroring, which would block the instance
 BUSY = {429, 500, 503}  # rate limited or overloaded: worth retrying
 
 
@@ -37,17 +38,20 @@ async def generate_answer(question: str, points: list[models.ScoredPoint]) -> st
         f"{' | ' + p.payload['section'] if p.payload.get('section') else ''}] ---\n{p.payload['text']}"
         for p in points
     )
-    # the last try uses the lighter model, which is served from a separate, usually less busy, capacity pool
-    for attempt, model in enumerate((LLM_MODEL, LLM_MODEL, VLM_MODEL)):
+    # retries use the lighter model: it is served from a separate, usually less busy, capacity pool,
+    # and asking an overloaded model again rarely helps
+    for attempt, model in enumerate((LLM_MODEL, VLM_MODEL, VLM_MODEL)):
         if attempt:
             await asyncio.sleep(RETRY_DELAYS[attempt - 1])
         try:
-            r = await _client().aio.models.generate_content(
+            r = await asyncio.wait_for(_client().aio.models.generate_content(
                 model=model,
                 contents=f"Context:\n{context}\n\nQuestion: {question}",
                 config=types.GenerateContentConfig(system_instruction=SYSTEM, temperature=0.1),
-            )
+            ), TIMEOUT)
             return (r.text or "").strip() or "The model returned no answer."
+        except asyncio.TimeoutError:
+            continue  # hung: same as busy
         except errors.APIError as e:
             if e.code not in BUSY:
                 raise

@@ -8,6 +8,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { ChartLine, ChevronDown, FileText, Image as ImageIcon, Table } from "lucide-react";
 import type { ChunkType, QueryResponse, Visual } from "@/lib/api";
+import FigureShowcase from "./FigureShowcase";
 
 const TYPE_META: Record<ChunkType, { label: string; Icon: typeof FileText }> = {
   text: { label: "Text", Icon: FileText },
@@ -49,6 +50,8 @@ export default function Answer({ data, active, onCite, onOpenVisual }: Props) {
         </p>
       )}
 
+      {data.images.length > 0 && <FigureShowcase key={data.question} visuals={data.images} onOpen={onOpenVisual} />}
+
       <div className="prose-answer max-w-[72ch]">
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkMath]}
@@ -76,37 +79,6 @@ export default function Answer({ data, active, onCite, onOpenVisual }: Props) {
           {linkCitations(data.answer)}
         </ReactMarkdown>
       </div>
-
-      {data.images.length > 0 && (
-        <ul className="flex flex-wrap gap-3" aria-label="Images and figures used for this answer">
-          {data.images.map((v, i) => (
-            <li key={i}>
-              <button
-                type="button"
-                onClick={() => onOpenVisual(v)}
-                className="group block w-[168px] overflow-hidden rounded-xl bg-surface text-left shadow-[0_1px_2px_rgba(0,0,0,0.06),0_4px_12px_-4px_rgba(0,0,0,0.12)] transition-shadow duration-200 hover:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_12px_24px_-8px_rgba(0,0,0,0.2)]"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element -- base64 from the API */}
-                <img
-                  src={`data:image/jpeg;base64,${v.image_base64}`}
-                  alt={`${TYPE_META[v.type].label} from page ${v.page_number}`}
-                  className="h-[112px] w-full bg-ground object-cover object-top"
-                />
-                <span className="flex items-center gap-1.5 px-3 py-2 text-xs text-ink-2">
-                  {(() => {
-                    const { Icon, label } = TYPE_META[v.type];
-                    return (
-                      <>
-                        <Icon className="size-3.5" aria-hidden /> {label} · p.<span className="tabular">{v.page_number}</span>
-                      </>
-                    );
-                  })()}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
 
       {data.sources.length > 0 && (
         <div>

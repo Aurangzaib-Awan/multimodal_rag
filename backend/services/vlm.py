@@ -18,6 +18,8 @@ PROMPTS = {
 }
 
 _sem: asyncio.Semaphore | None = None
+TIMEOUT = 30  # seconds per attempt: a hung call must not freeze the whole upload
+RETRY_DELAYS = (2, 4)
 
 
 @cache
@@ -35,10 +37,11 @@ async def caption(jpeg_b64: str, kind: Literal["image", "figure"]) -> str | None
     async with _sem:
         for attempt in range(3):
             try:
-                r = await _client().aio.models.generate_content(model=VLM_MODEL, contents=[part, PROMPTS[kind]])
+                r = await asyncio.wait_for(
+                    _client().aio.models.generate_content(model=VLM_MODEL, contents=[part, PROMPTS[kind]]), TIMEOUT)
                 return (r.text or "").strip() or None
             except Exception as e:
                 if attempt == 2:
-                    print(f"warn: caption failed: {e}")
+                    print(f"warn: caption failed: {type(e).__name__} {e}")
                     return None
-                await asyncio.sleep(2 ** (attempt + 1))
+                await asyncio.sleep(RETRY_DELAYS[attempt])

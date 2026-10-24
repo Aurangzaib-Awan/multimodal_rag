@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { CircleAlert, FileText, FileUp, RefreshCw } from "lucide-react";
 import PageMap from "./PageMap";
+import type { Visual } from "@/lib/api";
 
 export type DocState =
   | { phase: "loading" }
@@ -18,9 +19,11 @@ interface Props {
   active: number | null;
   onFile: (file: File) => void;
   onPickPage: (page: number) => void;
+  figures: Visual[];
+  onAskAbout: (v: Visual) => void;
 }
 
-export default function DocumentRail({ doc, cited, active, onFile, onPickPage }: Props) {
+export default function DocumentRail({ doc, cited, active, onFile, onPickPage, figures, onAskAbout }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const busy = doc.phase === "uploading" || doc.phase === "processing";
@@ -128,6 +131,33 @@ export default function DocumentRail({ doc, cited, active, onFile, onPickPage }:
                 </p>
               )}
             </div>
+          )}
+
+          {doc.phase === "ready" && figures.length > 0 && (
+            <section aria-labelledby="figures-title" className="flex flex-col gap-2 max-md:hidden">
+              <h3 id="figures-title" className="text-xs font-medium text-rail-ink">
+                {figures.length} {figures.length === 1 ? "picture" : "pictures"} found and described
+              </h3>
+              <ul className="grid grid-cols-2 gap-2">
+                {figures.map((v, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      onClick={() => onAskAbout(v)}
+                      aria-label={`Ask about the ${v.type === "figure" ? "diagram" : "image"} on page ${v.page_number}`}
+                      className="block w-full overflow-hidden rounded-lg bg-white text-left ring-1 ring-rail-line transition-shadow duration-150 hover:ring-2 hover:ring-hl"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element -- base64 from the API */}
+                      <img src={`data:image/jpeg;base64,${v.image_base64}`} alt="" className="h-20 w-full object-contain p-1.5" />
+                      <span className="block bg-rail-2 px-2 py-1 text-[0.6875rem] text-rail-ink-2">
+                        {v.type === "figure" ? "Diagram" : "Image"} · p.<span className="tabular">{v.page_number}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-rail-ink-2">Click one to ask about it.</p>
+            </section>
           )}
 
           {doc.phase === "error" && <Problem message={doc.error} />}

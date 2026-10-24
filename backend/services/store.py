@@ -85,6 +85,16 @@ def page_points(collection: str, pages: list[int]) -> list[models.Record]:
     return pts
 
 
+def figures(collection: str) -> list[models.Record]:
+    """Every image and figure of the document, in page order (for the gallery)."""
+    if not has_collection(collection):
+        return []
+    flt = models.Filter(must=[models.FieldCondition(key="type", match=models.MatchAny(any=["image", "figure"]))])
+    pts, _ = client().scroll(collection, scroll_filter=flt, limit=10_000,
+                             with_payload=["page_number", "type", "text", "seq", "image_base64"])
+    return sorted(pts, key=lambda p: (p.payload["page_number"], p.payload.get("seq", 0)))
+
+
 def build_filter(page: int | None, types: list[str] | None) -> models.Filter | None:
     must = []
     if page is not None:

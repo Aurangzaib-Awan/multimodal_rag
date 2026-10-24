@@ -241,3 +241,20 @@ def test_the_model_gets_the_whole_page_not_just_the_hits(long_page, api, monkeyp
              "Gamma motor neurons keep spindles sensitive.", "A block diagram of the feedback loop."}
     assert page5 <= set(seen["texts"]), "every chunk of the matched page reaches the model"
     assert body["sources"], "the evidence list still shows the matched chunks"
+
+
+# --- figure gallery ---------------------------------------------------------------------------------
+
+def test_figures_lists_every_picture_in_page_order(filled, api):
+    _add([("A photo of a microscope.", {"type": "image", "page_number": 1, "section": None, "seq": 1000,
+                                        "image_base64": "BBBB"})])
+    figs = api.get("/figures", headers=H).json()["figures"]
+    assert [(f["page_number"], f["type"], f["image_base64"]) for f in figs] == [(1, "image", "BBBB"), (2, "figure", "AAAA")]
+    assert figs[0]["caption"] == "A photo of a microscope."
+
+
+def test_figures_for_a_session_without_a_document_is_empty(api):
+    store.set_client(QdrantClient(location=":memory:"))
+    body = api.get("/figures", headers=H).json()
+    store.set_client(None)
+    assert body == {"figures": []}

@@ -48,6 +48,15 @@ async def document(session: Session):
     return {**info, "indexed": info["indexed"] and not running, "job": running[-1].public() if running else None}
 
 
+@app.get("/figures")
+async def figures(session: Session):
+    """Every image and figure found in this session's PDF, for the gallery shown after upload."""
+    # shortcut: sends full images, fine under the 4 MB upload limit; send thumbnails if PDFs get much bigger
+    pts = await asyncio.to_thread(store.figures, session)
+    return {"figures": [{"type": p.payload["type"], "page_number": p.payload["page_number"],
+                         "caption": p.payload["text"], "image_base64": p.payload["image_base64"]} for p in pts]}
+
+
 # AWS Lambda entry point. Local dev still runs `uvicorn main:app`.
 handler = Mangum(app, lifespan="off")
 
