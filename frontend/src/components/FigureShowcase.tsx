@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import { ChartLine, Image as ImageIcon, Maximize2, ScanEye } from "lucide-react";
 import type { Visual } from "@/lib/api";
 
@@ -63,7 +66,7 @@ export default function FigureShowcase({ visuals, onOpen }: { visuals: Visual[];
             <ScanEye className="size-4" aria-hidden /> What the vision model saw
           </summary>
           <div className="prose-answer mt-2 max-h-72 overflow-y-auto text-[0.8125rem] text-ink-2">
-            <ReactMarkdown>{v.caption}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{v.caption}</ReactMarkdown>
           </div>
         </details>
       </figcaption>

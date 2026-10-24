@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import type { Visual } from "@/lib/api";
 
@@ -51,7 +53,7 @@ export default function FigureViewer({ visual, onClose }: { visual: Visual | nul
             <div className="overflow-y-auto px-5 py-4">
               <p className="text-xs font-medium text-ink-3">What the vision model read from it</p>
               <div className="prose-answer mt-2 text-sm text-ink-2">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{visual.caption}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{visual.caption}</ReactMarkdown>
               </div>
             </div>
           </div>

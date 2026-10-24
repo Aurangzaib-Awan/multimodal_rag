@@ -102,7 +102,7 @@ export default function Conversation({ inputRef, ...p }: Props) {
                 }
               }}
               placeholder={p.ready ? "Ask about a passage, a table, a figure, or a page…" : p.disabledReason}
-              className="field-sizing-content max-h-40 min-h-[2.5rem] flex-1 resize-none bg-transparent py-2 text-[0.9375rem] leading-relaxed text-ink placeholder:text-ink-3 focus:outline-none disabled:cursor-not-allowed"
+              className="field-sizing-content max-h-40 min-h-[2.5rem] flex-1 resize-none bg-transparent py-2 text-[0.9375rem] leading-relaxed text-ink placeholder:text-ink-3 focus:outline-none! disabled:cursor-not-allowed"
             />
             <button
               type="submit"
