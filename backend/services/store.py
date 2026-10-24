@@ -77,6 +77,14 @@ def document_info(collection: str) -> dict:
     return {"indexed": n > 0, "filename": p.get("filename"), "pages_total": p.get("pages_total"), "chunks": n}
 
 
+def page_points(collection: str, pages: list[int]) -> list[models.Record]:
+    """Every chunk on these pages (text, tables, figure captions), without the heavy image data."""
+    flt = models.Filter(must=[models.FieldCondition(key="page_number", match=models.MatchAny(any=pages))])
+    pts, _ = client().scroll(collection, scroll_filter=flt, limit=10_000,
+                             with_payload=["page_number", "type", "section", "text", "seq"])
+    return pts
+
+
 def build_filter(page: int | None, types: list[str] | None) -> models.Filter | None:
     must = []
     if page is not None:

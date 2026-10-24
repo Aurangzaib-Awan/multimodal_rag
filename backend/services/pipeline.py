@@ -44,16 +44,18 @@ async def _points_for(pages: list[PageResult], job: Job, seen_xrefs: set[int]) -
     for p in pages:
         meta = {**base, "page_number": p["page_number"], "page_has_table": p["has_table"],
                 "page_has_image": p["has_image"]}
-        for c in p["chunks"]:
+        for seq, c in enumerate(p["chunks"]):  # seq: reading order on the page, for whole-page context
             embed_text = f"{c['section']}\n{c['text']}" if c["section"] else c["text"]
-            items.append((embed_text, {**meta, "type": c["type"], "section": c["section"], "text": c["text"]}))
-        for v in p["visuals"]:
+            items.append((embed_text, {**meta, "type": c["type"], "section": c["section"], "text": c["text"],
+                                       "seq": seq}))
+        for seq, v in enumerate(p["visuals"], start=1000):  # figure captions after the page's text
             if v["xref"] is not None:
                 if v["xref"] in seen_xrefs:  # same logo on every page: caption once
                     continue
                 seen_xrefs.add(v["xref"])
             section = p["chunks"][0]["section"] if p["chunks"] else None
-            visuals.append((v, {**meta, "type": v["kind"], "section": section, "image_base64": v["jpeg_b64"]}))
+            visuals.append((v, {**meta, "type": v["kind"], "section": section, "image_base64": v["jpeg_b64"],
+                                "seq": seq}))
 
     # embed the text chunks (CPU) while the vision model captions the figures (network)
     text_points, captions = await asyncio.gather(

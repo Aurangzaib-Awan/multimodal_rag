@@ -108,3 +108,16 @@ def test_replace_never_wipes_index_during_old_upsert(api, sample_pdf, monkeypatc
     assert _wait(api, second)["status"] == "done"
     assert state["overlap"] is False, "index was wiped while the old job was still writing"
     assert api.get(f"/ingest/{first}", headers=H).status_code == 404, "a replaced job is dropped, not kept in memory"
+
+
+def test_chunks_store_their_reading_order(api, sample_pdf, monkeypatch):
+    async def fake_caption(b64, kind):
+        return f"a {kind} caption"
+    monkeypatch.setattr(pipeline, "caption", fake_caption)
+    _wait(api, _upload(api, sample_pdf).json()["job_id"])
+    pts, _ = store.client().scroll(S, limit=100, with_payload=["page_number", "type", "seq"])
+    assert all("seq" in p.payload for p in pts)
+    figure = next(p for p in pts if p.payload["type"] == "figure")
+    page_text = [p.payload["seq"] for p in pts if p.payload["page_number"] == figure.payload["page_number"]
+                 and p.payload["type"] == "text"]
+    assert all(figure.payload["seq"] > s for s in page_text), "captions come after the page's text"

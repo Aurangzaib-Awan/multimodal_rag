@@ -37,6 +37,7 @@ MODEL_CACHE_DIR = os.getenv("FASTEMBED_CACHE_PATH", "/opt/models")
 
 # Qdrant runs in memory; each session (X-Session-Id header) gets its own collection
 TOP_K = 6
+CONTEXT_PAGES = 3  # small chunks find the pages; the model reads the whole page of the best 3
 # Documents kept in memory per instance; the least recently used one is dropped. Measured: ~1.1 GB after the
 # first ingest, then ~15 MB per session (test0/test1), ~30 MB worst case -> 50 sessions fit a 3008 MB Lambda.
 MAX_SESSIONS = 50

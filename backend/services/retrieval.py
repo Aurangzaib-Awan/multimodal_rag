@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from qdrant_client import models
 
+from config import CONTEXT_PAGES
 from services import store
 from services.embedding import embed_dense, embed_sparse
 
@@ -55,3 +56,13 @@ def retrieve(collection: str, question: str, pages_total: int | None = None) -> 
     hard = store.build_filter(flt.page, None)
     boost = store.build_filter(flt.page, flt.types) if flt.types else None
     return store.search(collection, dense, sparse, hard, boost), flt
+
+
+def page_context(collection: str, hits: list, max_pages: int = CONTEXT_PAGES) -> list[models.Record]:
+    """Small chunks are best for finding the right place; the model answers better seeing the whole page.
+    Returns every chunk of the best-ranked pages, in reading order."""
+    pages = list(dict.fromkeys(h.payload["page_number"] for h in hits))[:max_pages]
+    if not pages:
+        return []
+    return sorted(store.page_points(collection, pages),
+                  key=lambda p: (p.payload["page_number"], p.payload.get("seq", 0)))

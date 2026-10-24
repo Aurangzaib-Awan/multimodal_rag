@@ -186,3 +186,58 @@ def test_busy_model_returns_503_with_a_clear_message(filled, api, monkeypatch):
     monkeypatch.setattr(query_router, "generate_answer", busy)
     r = api.post("/query", json={"question": "what is entropy"}, headers=H)
     assert r.status_code == 503 and "try again" in r.json()["detail"].lower()
+
+
+# --- small chunks find the page, the whole page goes to the model ----------------------------------
+
+@pytest.fixture
+def long_page():
+    """Page 5 holds one section split into three chunks; page 6 is unrelated."""
+    store.set_client(QdrantClient(location=":memory:"))
+    store.reset_collection(S)
+    _add([
+        ("Muscle spindles sense how long a muscle is.", {"type": "text", "page_number": 5, "section": "Spindles", "seq": 0}),
+        ("They also report how fast the length changes.", {"type": "text", "page_number": 5, "section": "Spindles", "seq": 1}),
+        ("Gamma motor neurons keep spindles sensitive.", {"type": "text", "page_number": 5, "section": "Spindles", "seq": 2}),
+        ("A block diagram of the feedback loop.", {"type": "figure", "page_number": 5, "section": "Spindles", "seq": 1000,
+                                                 "image_base64": "AAAA"}),
+        ("Tendon organs measure force at the tendon.", {"type": "text", "page_number": 6, "section": "Tendons", "seq": 0}),
+    ])
+    yield
+    store.set_client(None)
+
+
+def _hit(page):
+    return models.ScoredPoint(id=str(uuid.uuid4()), version=0, score=1.0, payload={"page_number": page})
+
+
+def test_context_is_the_whole_page_in_reading_order(long_page):
+    ctx = retrieval.page_context(S, [_hit(5)])
+    assert [p.payload["text"] for p in ctx] == [
+        "Muscle spindles sense how long a muscle is.",
+        "They also report how fast the length changes.",
+        "Gamma motor neurons keep spindles sensitive.",
+        "A block diagram of the feedback loop.",
+    ]
+    assert all("image_base64" not in p.payload for p in ctx), "pictures are not sent to the text model"
+
+
+def test_context_keeps_the_best_pages_only(long_page):
+    ctx = retrieval.page_context(S, [_hit(6), _hit(5), _hit(6)], max_pages=1)
+    assert {p.payload["page_number"] for p in ctx} == {6}
+
+
+def test_the_model_gets_the_whole_page_not_just_the_hits(long_page, api, monkeypatch):
+    seen = {}
+
+    async def fake_answer(q, points):
+        seen["texts"] = [p.payload["text"] for p in points]
+        return "Spindles sense length and speed [p.5]."
+    monkeypatch.setattr(query_router, "generate_answer", fake_answer)
+    real_search = store.search
+    monkeypatch.setattr(store, "search", lambda *a, **k: real_search(*a, **k)[:1])  # only the best match
+    body = api.post("/query", json={"question": "what do gamma motor neurons do"}, headers=H).json()
+    page5 = {"Muscle spindles sense how long a muscle is.", "They also report how fast the length changes.",
+             "Gamma motor neurons keep spindles sensitive.", "A block diagram of the feedback loop."}
+    assert page5 <= set(seen["texts"]), "every chunk of the matched page reaches the model"
+    assert body["sources"], "the evidence list still shows the matched chunks"

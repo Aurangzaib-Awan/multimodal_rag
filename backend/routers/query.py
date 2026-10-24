@@ -8,7 +8,7 @@ from pydantic import BaseModel, StringConstraints
 from routers.session import Session, keep
 from services import store
 from services.generator import ModelBusy, generate_answer
-from services.retrieval import parse_query_filter, retrieve
+from services.retrieval import page_context, parse_query_filter, retrieve
 
 router = APIRouter(prefix="/query", tags=["Query"])
 
@@ -37,8 +37,9 @@ async def query_model(request: QueryRequest, session: Session):
                 "filter": {"page": asked, "types": None}, "sources": [], "images": []}
 
     points, flt = await asyncio.to_thread(retrieve, session, q, total)
+    context = await asyncio.to_thread(page_context, session, points)
     try:
-        answer = await generate_answer(q, points)
+        answer = await generate_answer(q, context)
     except ModelBusy:
         raise HTTPException(503, "The AI model is busy right now. Please try again in a moment.")
     cited = {int(n) for n in CITED_PAGE.findall(answer)}  # show only the pictures the answer actually used

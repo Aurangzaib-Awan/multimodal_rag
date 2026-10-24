@@ -11,7 +11,7 @@ Upload a PDF, then ask questions about its text, tables, images and charts. Answ
   - A near-empty page that has drawings but no clean cluster is still rendered whole as a fallback.
 - **Captions and embeddings:** VLM calls run concurrently under asyncio, capped at 4 at once. Embeddings run locally with fastembed (bge-base dense, BM25 sparse).
 - **Storage:** in-memory Qdrant, one collection per session (the `X-Session-Id` header, a UUID the frontend generates). Nothing persists: a restart, or a new Lambda instance, means re-uploading. Payload per chunk: `page_number, type, section, text, filename, pages_total`, plus `image_base64` for images and figures.
-- **Query** (`backend/services/retrieval.py`): a page mentioned in the question is a hard filter. Words like "table" or "chart" boost that content type without excluding the rest. Then hybrid dense + BM25 search with RRF, then Gemini answers with `[p.N]` citations.
+- **Query** (`backend/services/retrieval.py`): a page mentioned in the question is a hard filter. Words like "table" or "chart" boost that content type without excluding the rest. Then hybrid dense + BM25 search with RRF over small chunks. Gemini reads the whole page of the 3 best-matching pages (small chunks find the place, whole pages give the context) and answers with `[p.N]` citations; only images from pages the answer cites are returned.
 - **Ingest is a background job**: `POST /ingest` returns a job id, `GET /ingest/{id}` reports progress, and `GET /document` tells a reloaded page what is indexed or still running.
 
 ## Run it
