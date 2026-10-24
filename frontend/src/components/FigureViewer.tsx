@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { Visual } from "@/lib/api";
 
 export default function FigureViewer({ visual, onClose }: { visual: Visual | null; onClose: () => void }) {
@@ -48,7 +50,9 @@ export default function FigureViewer({ visual, onClose }: { visual: Visual | nul
             </div>
             <div className="overflow-y-auto px-5 py-4">
               <p className="text-xs font-medium text-ink-3">What the vision model read from it</p>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink-2">{visual.caption}</p>
+              <div className="prose-answer mt-2 text-sm text-ink-2">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{visual.caption}</ReactMarkdown>
+              </div>
             </div>
           </div>
         </div>
