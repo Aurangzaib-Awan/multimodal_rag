@@ -1,9 +1,15 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { CircleAlert, FileText, FileUp, RefreshCw } from "lucide-react";
+import { CircleAlert, FileText, FileUp, RefreshCw, Sparkles } from "lucide-react";
 import PageMap from "./PageMap";
 import type { Visual } from "@/lib/api";
+
+// Shipped in public/samples so visitors without a suitable PDF can try the multimodal parts.
+const SAMPLES = [
+  { file: "somatosensory-system.pdf", title: "Anatomy chapter", detail: "4 pages · 2 diagrams, 1 photo" },
+  { file: "attention-is-all-you-need.pdf", title: "Attention Is All You Need", detail: "15 pages · figures, tables, math" },
+];
 
 export type DocState =
   | { phase: "loading" }
@@ -29,6 +35,17 @@ export default function DocumentRail({ doc, cited, active, onFile, onPickPage, f
   const busy = doc.phase === "uploading" || doc.phase === "processing";
 
   const pick = () => input.current?.click();
+  const [sampleError, setSampleError] = useState("");
+  const trySample = async (name: string) => {
+    setSampleError("");
+    try {
+      const res = await fetch(`/samples/${name}`);
+      if (!res.ok) throw new Error();
+      onFile(new File([await res.blob()], name, { type: "application/pdf" }));
+    } catch {
+      setSampleError("Couldn't load the sample PDF. Try again.");
+    }
+  };
   const drop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
@@ -85,6 +102,26 @@ export default function DocumentRail({ doc, cited, active, onFile, onPickPage, f
       )}
 
       {doc.phase === "empty" && doc.error && <Problem message={doc.error} />}
+
+      {(doc.phase === "empty" || doc.phase === "error") && !dragging && (
+        <section aria-labelledby="samples-title" className="flex flex-col gap-2">
+          <h2 id="samples-title" className="flex items-center gap-1.5 text-xs font-medium text-rail-ink-2">
+            <Sparkles className="size-3.5 text-hl" aria-hidden /> No PDF handy? Try a sample
+          </h2>
+          {SAMPLES.map((s) => (
+            <button
+              key={s.file}
+              type="button"
+              onClick={() => trySample(s.file)}
+              className="flex flex-col items-start rounded-lg bg-rail-2/60 px-3 py-2 text-left ring-1 ring-rail-line transition-colors duration-150 hover:bg-rail-2 hover:ring-rail-ink-2"
+            >
+              <span className="text-[0.8125rem] font-medium text-rail-ink">{s.title}</span>
+              <span className="text-xs text-rail-ink-2">{s.detail}</span>
+            </button>
+          ))}
+          {sampleError && <Problem message={sampleError} />}
+        </section>
+      )}
 
       {!dragging && doc.phase !== "empty" && doc.phase !== "loading" && (
         <section aria-labelledby="doc-title" className="flex flex-col gap-2 md:gap-4">
