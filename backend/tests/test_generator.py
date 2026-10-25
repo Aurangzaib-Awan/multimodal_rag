@@ -4,9 +4,9 @@ from types import SimpleNamespace
 import pytest
 from google.genai import errors
 
-from config import LLM_MODEL, VLM_MODEL
 from services import generator
 
+LLM_MODEL, VLM_MODEL = "main-model", "light-model"  # distinct names, whatever config.py defaults to
 POINTS = [SimpleNamespace(payload={"page_number": 1, "type": "text", "text": "Entropy measures uncertainty."})]
 
 
@@ -27,6 +27,8 @@ def fake(monkeypatch):
     def use(models):
         monkeypatch.setattr(generator, "_client", lambda: SimpleNamespace(aio=SimpleNamespace(models=models)))
         monkeypatch.setattr(generator, "RETRY_DELAYS", (0, 0))
+        monkeypatch.setattr(generator, "LLM_MODEL", LLM_MODEL)
+        monkeypatch.setattr(generator, "VLM_MODEL", VLM_MODEL)
         return models
     return use
 

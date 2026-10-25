@@ -34,6 +34,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 | Variable | Purpose |
 |---|---|
 | `GEMINI_API_KEY` | image/figure captions and answers (required) |
+| `LLM_MODEL` | answer model, default `gemini-flash-lite-latest` (fast); `gemini-flash-latest` is stronger but was often overloaded |
 | `FASTEMBED_CACHE_PATH` | fastembed model folder. Default `/opt/models` (baked into the Lambda image); set a writable folder for local dev, e.g. `/tmp/fastembed_cache` |
 | `CORS_ORIGINS` | comma-separated, default `http://localhost:3000` |
 
@@ -51,7 +52,7 @@ Steps (replace `ACCOUNT`, `REGION`, the role and the key):
 
 ```bash
 cd backend
-docker build --platform linux/amd64 -t multirag-api .
+docker buildx build --platform linux/amd64 --provenance=false -t multirag-api --load .
 
 aws ecr create-repository --repository-name multirag-api
 aws ecr get-login-password --region REGION | docker login --username AWS --password-stdin ACCOUNT.dkr.ecr.REGION.amazonaws.com
@@ -78,6 +79,7 @@ aws lambda add-permission --function-name multirag-api --statement-id public-url
 - **CORS:** leave the Function URL's own CORS setting off. The app already answers CORS from `CORS_ORIGINS`, and setting both sends duplicate headers that browsers reject.
 - **Reserved concurrency 1 can fail on new AWS accounts.** AWS keeps at least 10 concurrent executions unreserved, and new accounts often have a total of only 10. If the command is refused, request a higher "Concurrent executions" quota in Service Quotas.
 - **Frontend:** build it with `NEXT_PUBLIC_API_URL` set to the Function URL. A trailing slash is fine.
+- **`--provenance=false`:** buildx otherwise adds build metadata that turns the image into a multi-entry index, which Lambda rejects.
 - **Updating:** rebuild and push, then `aws lambda update-function-code --function-name multirag-api --image-uri ACCOUNT.dkr.ecr.REGION.amazonaws.com/multirag-api:latest`.
 
 ## Try it with the demo PDFs

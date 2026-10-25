@@ -26,7 +26,9 @@ FIGURE_LABEL_CHARS = 200    # text blocks shorter than this touching the figure 
 # Models
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 VLM_MODEL = os.getenv("VLM_MODEL", "gemini-flash-lite-latest")
-LLM_MODEL = os.getenv("LLM_MODEL", "gemini-flash-latest")
+# flash-lite answers in ~5-8 s; gemini-flash-latest was repeatedly hanging (25 s timeout) in Oct 2026 tests.
+# Set LLM_MODEL=gemini-flash-latest to switch back.
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-flash-lite-latest")
 VLM_CONCURRENCY = 4
 DENSE_MODEL = "BAAI/bge-base-en-v1.5"
 DENSE_SIZE = 768

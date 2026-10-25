@@ -1,5 +1,6 @@
 # AWS Lambda container image for the API. Build from this folder:
-#   docker build --platform linux/amd64 -t multirag-api .
+#   docker buildx build --platform linux/amd64 --provenance=false -t multirag-api --load .
+# (--provenance=false: Lambda rejects images that carry buildx's extra metadata)
 FROM public.ecr.aws/lambda/python:3.12
 
 COPY requirements.txt ${LAMBDA_TASK_ROOT}/
